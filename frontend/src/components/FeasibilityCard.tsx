@@ -6,6 +6,7 @@ interface Props {
   onConfirmStack: () => void
   onReviseStack: (note: string) => void
   loading: boolean
+  readOnly?: boolean
 }
 
 const VERDICT_COLOR: Record<FeasibilityOutput['feasibility_verdict'], string> = {
@@ -20,7 +21,7 @@ const WEEK_COLOR: Record<FeasibilityOutput['eight_week_verdict'], string> = {
   'not-achievable': '#ef4444',
 }
 
-export function FeasibilityCard({ feasibility: f, onConfirmStack, onReviseStack, loading }: Props) {
+export function FeasibilityCard({ feasibility: f, onConfirmStack, onReviseStack, loading, readOnly = false }: Props) {
   const [revising, setRevising] = useState(false)
   const [note, setNote] = useState('')
 
@@ -75,7 +76,7 @@ export function FeasibilityCard({ feasibility: f, onConfirmStack, onReviseStack,
         <p className="muted small" style={{ marginTop: '0.5rem' }}>{f.stack_rationale}</p>
       </div>
 
-      {revising ? (
+      {!readOnly && (revising ? (
         <form onSubmit={submitRevision} className="form" style={{ marginTop: '1.25rem' }}>
           <label>
             What would you like to change about the stack or scope?
@@ -105,7 +106,7 @@ export function FeasibilityCard({ feasibility: f, onConfirmStack, onReviseStack,
             Revise stack / scope
           </button>
         </div>
-      )}
+      ))}
     </div>
   )
 }

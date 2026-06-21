@@ -5,6 +5,7 @@ interface Props {
   critique: CriticOutput
   onSubmitRevision: (feedback: string) => void
   loading: boolean
+  readOnly?: boolean
 }
 
 const VERDICT_STYLE: Record<CriticOutput['overall_verdict'], { bg: string; label: string }> = {
@@ -13,7 +14,7 @@ const VERDICT_STYLE: Record<CriticOutput['overall_verdict'], { bg: string; label
   'needs-major-revision': { bg: '#ef4444', label: 'Needs major revision' },
 }
 
-export function CritiquePanel({ critique: c, onSubmitRevision, loading }: Props) {
+export function CritiquePanel({ critique: c, onSubmitRevision, loading, readOnly = false }: Props) {
   const [feedback, setFeedback] = useState('')
   const vs = VERDICT_STYLE[c.overall_verdict]
 
@@ -87,21 +88,23 @@ export function CritiquePanel({ critique: c, onSubmitRevision, loading }: Props)
         </div>
       )}
 
-      <form onSubmit={submit} className="form" style={{ borderTop: '1px solid #e5e7eb', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
-        <label>
-          Request a revision
-          <textarea
-            value={feedback}
-            onChange={e => setFeedback(e.target.value)}
-            rows={3}
-            placeholder="Describe what you'd like changed — e.g. 'Week 1 tasks are too vague' or 'Add more time for testing'"
-            disabled={loading}
-          />
-        </label>
-        <button type="submit" className="btn-primary" disabled={loading || !feedback.trim()}>
-          {loading ? 'Revising roadmap…' : 'Submit revision'}
-        </button>
-      </form>
+      {!readOnly && (
+        <form onSubmit={submit} className="form" style={{ borderTop: '1px solid #e5e7eb', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+          <label>
+            Request a revision
+            <textarea
+              value={feedback}
+              onChange={e => setFeedback(e.target.value)}
+              rows={3}
+              placeholder="Describe what you'd like changed — e.g. 'Week 1 tasks are too vague' or 'Add more time for testing'"
+              disabled={loading}
+            />
+          </label>
+          <button type="submit" className="btn-primary" disabled={loading || !feedback.trim()}>
+            {loading ? 'Revising roadmap…' : 'Submit revision'}
+          </button>
+        </form>
+      )}
     </div>
   )
 }
