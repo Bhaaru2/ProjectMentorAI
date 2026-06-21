@@ -302,6 +302,49 @@ textarea { resize: vertical; }
   margin-top: 0.5rem;
 }
 
+/* ── Conversation ────────────────────────────────────────────────────────────── */
+
+.conversation-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+
+.bubble-row { display: flex; }
+.bubble-row-user { justify-content: flex-end; }
+.bubble-row-assistant { justify-content: flex-start; }
+
+.bubble {
+  max-width: 80%;
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bubble-user { background: var(--primary); color: #fff; border-bottom-right-radius: 3px; }
+.bubble-assistant { background: #f3f4f6; color: var(--text); border-bottom-left-radius: 3px; }
+
+.bubble-time { font-size: 0.7rem; opacity: 0.6; align-self: flex-end; }
+.bubble-user .bubble-time { color: rgba(255,255,255,0.7); }
+
+.revision-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: #ede9fe;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  align-self: flex-start;
+  margin-bottom: 0.15rem;
+}
+
+.discuss-header { display: flex; align-items: center; justify-content: space-between; }
+.intent-toggle { display: flex; gap: 0.5rem; }
+.intent-toggle .btn-primary,
+.intent-toggle .btn-secondary { padding: 0.4rem 0.9rem; font-size: 0.8rem; }
+
 /* ── Utilities ───────────────────────────────────────────────────────────────── */
 
 .muted { color: var(--muted); }

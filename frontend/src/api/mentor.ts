@@ -256,3 +256,37 @@ export async function reviseRoadmap(
   )
   return res.data
 }
+
+// ── Conversation ───────────────────────────────────────────────────────────────
+
+export interface ConversationMessage {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant'
+  stage: string
+  message_type: string
+  content: { text?: string; summary?: string; [key: string]: unknown }
+  intent: 'ask' | 'revise' | null
+  agent_output_version: number | null
+  created_at: string
+}
+
+export interface DiscussResponse {
+  type: 'reply' | 'revision'
+  content: unknown
+  version: number | null
+}
+
+export async function getConversationLog(sessionId: string): Promise<ConversationMessage[]> {
+  const res = await api.get<ConversationMessage[]>(`/sessions/${sessionId}/conversation`)
+  return res.data
+}
+
+export async function discuss(
+  sessionId: string,
+  message: string,
+  intent: 'ask' | 'revise',
+): Promise<DiscussResponse> {
+  const res = await api.post<DiscussResponse>(`/sessions/${sessionId}/discuss`, { message, intent })
+  return res.data
+}

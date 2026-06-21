@@ -13,6 +13,8 @@ import { IdeaLockConfirm } from './components/IdeaLockConfirm'
 import { FeasibilityCard } from './components/FeasibilityCard'
 import { RoadmapTimeline } from './components/RoadmapTimeline'
 import { CritiquePanel } from './components/CritiquePanel'
+import { ConversationLog } from './components/ConversationLog'
+import { DiscussInput } from './components/DiscussInput'
 
 export default function App() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -154,6 +156,20 @@ export default function App() {
             </div>
           )}
           {mainContent}
+
+          {session.sessionId && session.phase !== 'draft' && (
+            <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <ConversationLog messages={session.conversationLog} />
+              <DiscussInput
+                onSubmit={session.discuss}
+                loading={session.loading}
+                canRevise={
+                  session.phase === 'feasibility_presented' ||
+                  session.phase === 'roadmap_ready'
+                }
+              />
+            </div>
+          )}
         </main>
       </div>
     </div>

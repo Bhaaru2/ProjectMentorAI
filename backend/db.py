@@ -208,3 +208,35 @@ def save_feedback_revision(
         "resulting_output_id": resulting_output_id,
     }).execute()
     return r.data[0]
+
+
+# ── Conversation Log ───────────────────────────────────────────────────────────
+
+def log_message(
+    session_id: str,
+    role: str,
+    stage: str,
+    message_type: str,
+    content: dict,
+    intent: str | None = None,
+    agent_output_version: int | None = None,
+) -> dict:
+    r = get_db().table("conversation_log").insert({
+        "session_id": session_id,
+        "role": role,
+        "stage": stage,
+        "message_type": message_type,
+        "content": content,
+        "intent": intent,
+        "agent_output_version": agent_output_version,
+    }).execute()
+    return r.data[0]
+
+
+def get_conversation_log(session_id: str) -> list[dict]:
+    r = (get_db().table("conversation_log")
+         .select("*")
+         .eq("session_id", session_id)
+         .order("created_at")
+         .execute())
+    return r.data
