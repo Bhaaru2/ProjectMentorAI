@@ -282,3 +282,113 @@ def run_revision_wave(
         resulting_output_id=latest["id"],
     )
     return roadmap_output, critic_output
+
+
+# ── Helpers for discussion routing ────────────────────────────────────────────
+
+def get_stage_from_status(status: str) -> str:
+    if status in ("draft", "options_presented", "idea_locked"):
+        return "idea_analysis"
+    elif status == "feasibility_presented":
+        return "feasibility"
+    else:
+        return "roadmap"
+
+
+def _build_project_context(latest: dict | None) -> dict:
+    if not latest:
+        return {}
+    ctx: dict = {}
+    if latest.get("idea_analysis"):
+        ctx["idea_analysis"] = latest["idea_analysis"]
+    if latest.get("feasibility") and latest.get("tech_stack"):
+        ctx["feasibility"] = {**latest["feasibility"], "recommended_stack": latest["tech_stack"]}
+    if latest.get("critique"):
+        ctx["critique"] = latest["critique"]
+    return ctx
+
+
+# ── Discussion + unified revision entry point ─────────────────────────────────
+
+def run_discuss(session_id: str, message: str, intent: str) -> dict:
+    """
+    Unified discussion / revision handler for the /discuss endpoint.
+
+    intent == "ask": read-only conversational reply using discuss.py agent.
+      No agent_outputs write. Logs both turns to conversation_log.
+
+    intent == "revise": gate-checked re-run of the appropriate stage agent.
+      Calls run_feasibility_revision or run_revision_wave depending on
+      session status. Logs both turns to conversation_log.
+    """
+    from agents.discuss import run_discuss_agent
+
+    session = db.get_session(session_id)
+    stage = get_stage_from_status(session["status"])
+    history = db.get_conversation_log(session_id)
+    latest = db.get_latest_agent_output(session_id)
+    context = _build_project_context(latest)
+
+    db.log_message(
+        session_id=session_id,
+        role="user",
+        stage=stage,
+        message_type="question" if intent == "ask" else "revision_request",
+        content={"text": message},
+        intent=intent,
+    )
+
+    if intent == "ask":
+        reply = run_discuss_agent(stage, context, history, message)
+        db.log_message(
+            session_id=session_id,
+            role="assistant",
+            stage=stage,
+            message_type="text",
+            content={"text": reply},
+            intent=intent,
+        )
+        return {"type": "reply", "content": reply, "version": None}
+
+    # intent == "revise"
+    if stage == "feasibility":
+        _gate(session, "feasibility_presented")
+        output = run_feasibility_revision(session_id, message)
+        new_latest = db.get_latest_agent_output(session_id)
+        version = new_latest["version"] if new_latest else None
+        db.log_message(
+            session_id=session_id,
+            role="assistant",
+            stage=stage,
+            message_type="agent_output",
+            content={"summary": f"Stack and feasibility revised. New verdict: {output.feasibility_verdict}."},
+            intent=intent,
+            agent_output_version=version,
+        )
+        return {"type": "revision", "content": output.model_dump(), "version": version}
+
+    elif stage == "roadmap":
+        _gate(session, "roadmap_ready")
+        roadmap, critique = run_revision_wave(session_id, message)
+        new_latest = db.get_latest_agent_output(session_id)
+        version = new_latest["version"] if new_latest else None
+        db.log_message(
+            session_id=session_id,
+            role="assistant",
+            stage=stage,
+            message_type="agent_output",
+            content={"summary": f"Roadmap revised. Critic verdict: {critique.overall_verdict}."},
+            intent=intent,
+            agent_output_version=version,
+        )
+        return {
+            "type": "revision",
+            "content": {"roadmap": roadmap.model_dump(), "critique": critique.model_dump()},
+            "version": version,
+        }
+
+    else:
+        raise PipelineGateError(
+            f"Revision not supported at stage '{stage}'. "
+            "Use the idea input to submit a different idea."
+        )

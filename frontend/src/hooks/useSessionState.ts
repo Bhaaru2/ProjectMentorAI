@@ -7,6 +7,7 @@ import type {
   CriticOutput,
   SessionStatus,
   RoadmapPhaseRow,
+  ConversationMessage,
 } from '../api/mentor'
 
 interface SessionState {
@@ -16,6 +17,7 @@ interface SessionState {
   feasibilityOutput: FeasibilityOutput | null
   roadmapOutput: RoadmapOutput | null
   critiqueOutput: CriticOutput | null
+  conversationLog: ConversationMessage[]
   loading: boolean
   error: string | null
 }
@@ -27,6 +29,7 @@ const INITIAL: SessionState = {
   feasibilityOutput: null,
   roadmapOutput: null,
   critiqueOutput: null,
+  conversationLog: [],
   loading: false,
   error: null,
 }
@@ -78,6 +81,7 @@ export function useSessionState() {
         sessionId: session.id,
         phase: 'options_presented',
         ideaOutput,
+        conversationLog: [],
         loading: false,
       })
     })
@@ -99,7 +103,8 @@ export function useSessionState() {
   const reviseStack = async (studentNote: string) => {
     await withLoading(async () => {
       const feasibilityOutput = await mentor.reviseStack(state.sessionId!, studentNote)
-      patch({ feasibilityOutput, phase: 'feasibility_presented', loading: false })
+      const log = await mentor.getConversationLog(state.sessionId!)
+      patch({ feasibilityOutput, phase: 'feasibility_presented', conversationLog: log, loading: false })
     })
   }
 
@@ -119,7 +124,31 @@ export function useSessionState() {
   const submitRevision = async (feedback: string) => {
     await withLoading(async () => {
       const { roadmap, critique } = await mentor.reviseRoadmap(state.sessionId!, feedback)
-      patch({ roadmapOutput: roadmap, critiqueOutput: critique, phase: 'roadmap_ready', loading: false })
+      const log = await mentor.getConversationLog(state.sessionId!)
+      patch({ roadmapOutput: roadmap, critiqueOutput: critique, phase: 'roadmap_ready', conversationLog: log, loading: false })
+    })
+  }
+
+  // ── Free-form discussion / revision via /discuss ──────────────────────────────
+
+  const discuss = async (message: string, intent: 'ask' | 'revise') => {
+    await withLoading(async () => {
+      const response = await mentor.discuss(state.sessionId!, message, intent)
+
+      const updates: Partial<SessionState> = {}
+
+      if (response.type === 'revision') {
+        const content = response.content as Record<string, unknown>
+        if ('recommended_stack' in content) {
+          updates.feasibilityOutput = content as unknown as FeasibilityOutput
+        } else if ('roadmap' in content) {
+          updates.roadmapOutput = content.roadmap as RoadmapOutput
+          updates.critiqueOutput = content.critique as CriticOutput
+        }
+      }
+
+      const log = await mentor.getConversationLog(state.sessionId!)
+      patch({ ...updates, conversationLog: log, loading: false })
     })
   }
 
@@ -127,7 +156,10 @@ export function useSessionState() {
 
   const loadSession = async (sessionId: string) => {
     await withLoading(async () => {
-      const data = await mentor.getSession(sessionId)
+      const [data, log] = await Promise.all([
+        mentor.getSession(sessionId),
+        mentor.getConversationLog(sessionId),
+      ])
       const { session, latest_output: out, roadmap_phases: rows } = data
 
       let feasibilityOutput: FeasibilityOutput | null = null
@@ -144,6 +176,7 @@ export function useSessionState() {
         feasibilityOutput,
         roadmapOutput,
         critiqueOutput: out?.critique ?? null,
+        conversationLog: log,
         loading: false,
       })
     })
@@ -158,6 +191,7 @@ export function useSessionState() {
     reviseStack,
     confirmStack,
     submitRevision,
+    discuss,
     loadSession,
     resetSession,
   }

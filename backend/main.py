@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # must run before any module reads env vars
 
+from typing import Literal
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,6 +23,7 @@ app.add_middleware(
 # ── Request models ─────────────────────────────────────────────────────────────
 
 class CreateProfileRequest(BaseModel):
+    auth_user_id: str
     full_name: str
     skill_level: str          # beginner | intermediate | advanced
     known_stack: str | None = None
@@ -48,6 +50,11 @@ class ReviseStackRequest(BaseModel):
     student_note: str
 
 
+class DiscussRequest(BaseModel):
+    message: str
+    intent: Literal["ask", "revise"]
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _gate_err(e: pipeline.PipelineGateError) -> HTTPException:
@@ -65,7 +72,7 @@ def health():
 
 @app.post("/profiles", status_code=201)
 def create_profile(req: CreateProfileRequest):
-    return db.create_profile(req.full_name, req.skill_level, req.known_stack)
+    return db.create_profile(req.full_name, req.skill_level, req.known_stack, req.auth_user_id)
 
 
 @app.get("/profiles/by-auth/{auth_user_id}")
@@ -91,6 +98,11 @@ def list_sessions(profile_id: str):
 @app.post("/sessions", status_code=201)
 def create_session(req: CreateSessionRequest):
     return db.create_session(req.profile_id, req.title)
+
+
+@app.get("/sessions/{session_id}/conversation")
+def get_conversation(session_id: str):
+    return db.get_conversation_log(session_id)
 
 
 @app.get("/sessions/{session_id}")
@@ -162,7 +174,16 @@ def run_roadmap(session_id: str):
 def revise_stack(session_id: str, req: ReviseStackRequest):
     """Stack-rejection path — re-runs Agent 2 with note. Gate: feasibility_presented."""
     try:
+        session = db.get_session(session_id)
+        stage = pipeline.get_stage_from_status(session["status"])
+        db.log_message(session_id, "user", stage, "revision_request",
+                       {"text": req.student_note}, intent="revise")
         output = pipeline.run_feasibility_revision(session_id, req.student_note)
+        latest = db.get_latest_agent_output(session_id)
+        db.log_message(session_id, "assistant", stage, "agent_output",
+                       {"summary": f"Stack revised. New verdict: {output.feasibility_verdict}."},
+                       intent="revise",
+                       agent_output_version=latest["version"] if latest else None)
         return output.model_dump()
     except pipeline.PipelineGateError as e:
         raise _gate_err(e)
@@ -172,10 +193,25 @@ def revise_stack(session_id: str, req: ReviseStackRequest):
 def revise_roadmap(session_id: str, req: ReviseRequest):
     """Partial re-run — Agents 3 + 4 only with student feedback. Gate: roadmap_ready."""
     try:
+        session = db.get_session(session_id)
+        stage = pipeline.get_stage_from_status(session["status"])
+        db.log_message(session_id, "user", stage, "revision_request",
+                       {"text": req.student_feedback}, intent="revise")
         roadmap, critique = pipeline.run_revision_wave(session_id, req.student_feedback)
-        return {
-            "roadmap": roadmap.model_dump(),
-            "critique": critique.model_dump(),
-        }
+        latest = db.get_latest_agent_output(session_id)
+        db.log_message(session_id, "assistant", stage, "agent_output",
+                       {"summary": f"Roadmap revised. Critic verdict: {critique.overall_verdict}."},
+                       intent="revise",
+                       agent_output_version=latest["version"] if latest else None)
+        return {"roadmap": roadmap.model_dump(), "critique": critique.model_dump()}
+    except pipeline.PipelineGateError as e:
+        raise _gate_err(e)
+
+
+@app.post("/sessions/{session_id}/discuss")
+def discuss(session_id: str, req: DiscussRequest):
+    """Free-form ask or revision via conversation. Logs both turns to conversation_log."""
+    try:
+        return pipeline.run_discuss(session_id, req.message, req.intent)
     except pipeline.PipelineGateError as e:
         raise _gate_err(e)
