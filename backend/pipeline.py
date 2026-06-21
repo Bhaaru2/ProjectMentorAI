@@ -64,6 +64,10 @@ def run_idea_analysis(session_id: str, raw_idea_text: str) -> schemas.IdeaAnalyz
     _gate(session, "draft", "idea_locked", "roadmap_ready", "revising")
 
     profile = db.get_profile(session["profile_id"])
+
+    db.log_message(session_id, "user", "idea_analysis", "question",
+                   content={"text": raw_idea_text})
+
     output = run_idea_analyzer(schemas.IdeaAnalyzerInput(
         raw_idea_text=raw_idea_text,
         skill_level=profile["skill_level"],
@@ -74,6 +78,8 @@ def run_idea_analysis(session_id: str, raw_idea_text: str) -> schemas.IdeaAnalyz
     version = db.get_next_version(session_id)
     db.create_agent_output_row(session_id, version, output.model_dump())
     db.update_session_status(session_id, "options_presented")
+    db.log_message(session_id, "assistant", "idea_analysis", "agent_output",
+                   content=output.model_dump())
     return output
 
 
@@ -131,6 +137,8 @@ def run_feasibility(session_id: str) -> schemas.FeasibilityOutput:
         tech_stack=output.recommended_stack.model_dump(),
     )
     db.update_session_status(session_id, "feasibility_presented")
+    db.log_message(session_id, "assistant", "feasibility", "agent_output",
+                   content=output.model_dump())
     return output
 
 
@@ -251,6 +259,10 @@ def run_roadmap_wave(
     db.update_agent_output_critique(output_id, critic_output.model_dump())
     db.save_roadmap_phases(output_id, [p.model_dump() for p in roadmap_output.phases])
     db.update_session_status(session_id, "roadmap_ready")
+    if not is_revision:
+        db.log_message(session_id, "assistant", "roadmap", "agent_output",
+                       content={"roadmap": roadmap_output.model_dump(),
+                                "critique": critic_output.model_dump()})
     return roadmap_output, critic_output
 
 
@@ -361,7 +373,7 @@ def run_discuss(session_id: str, message: str, intent: str) -> dict:
             role="assistant",
             stage=stage,
             message_type="agent_output",
-            content={"summary": f"Stack and feasibility revised. New verdict: {output.feasibility_verdict}."},
+            content=output.model_dump(),
             intent=intent,
             agent_output_version=version,
         )
@@ -377,7 +389,7 @@ def run_discuss(session_id: str, message: str, intent: str) -> dict:
             role="assistant",
             stage=stage,
             message_type="agent_output",
-            content={"summary": f"Roadmap revised. Critic verdict: {critique.overall_verdict}."},
+            content={"roadmap": roadmap.model_dump(), "critique": critique.model_dump()},
             intent=intent,
             agent_output_version=version,
         )

@@ -181,7 +181,7 @@ def revise_stack(session_id: str, req: ReviseStackRequest):
         output = pipeline.run_feasibility_revision(session_id, req.student_note)
         latest = db.get_latest_agent_output(session_id)
         db.log_message(session_id, "assistant", stage, "agent_output",
-                       {"summary": f"Stack revised. New verdict: {output.feasibility_verdict}."},
+                       output.model_dump(),
                        intent="revise",
                        agent_output_version=latest["version"] if latest else None)
         return output.model_dump()
@@ -200,7 +200,7 @@ def revise_roadmap(session_id: str, req: ReviseRequest):
         roadmap, critique = pipeline.run_revision_wave(session_id, req.student_feedback)
         latest = db.get_latest_agent_output(session_id)
         db.log_message(session_id, "assistant", stage, "agent_output",
-                       {"summary": f"Roadmap revised. Critic verdict: {critique.overall_verdict}."},
+                       {"roadmap": roadmap.model_dump(), "critique": critique.model_dump()},
                        intent="revise",
                        agent_output_version=latest["version"] if latest else None)
         return {"roadmap": roadmap.model_dump(), "critique": critique.model_dump()}

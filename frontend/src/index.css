@@ -340,6 +340,9 @@ textarea { resize: vertical; }
   margin-bottom: 0.15rem;
 }
 
+.card-message { margin: 0.25rem 0; }
+.card-message-header { margin-bottom: 0.5rem; }
+
 .discuss-header { display: flex; align-items: center; justify-content: space-between; }
 .intent-toggle { display: flex; gap: 0.5rem; }
 .intent-toggle .btn-primary,
