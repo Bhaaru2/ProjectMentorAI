@@ -3,12 +3,20 @@ from dotenv import load_dotenv
 load_dotenv()  # must run before any module reads env vars
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import db
 import pipeline
 
 app = FastAPI(title="AI Project Mentor Agent", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ── Request models ─────────────────────────────────────────────────────────────
@@ -36,6 +44,10 @@ class ReviseRequest(BaseModel):
     student_feedback: str
 
 
+class ReviseStackRequest(BaseModel):
+    student_note: str
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _gate_err(e: pipeline.PipelineGateError) -> HTTPException:
@@ -54,6 +66,14 @@ def health():
 @app.post("/profiles", status_code=201)
 def create_profile(req: CreateProfileRequest):
     return db.create_profile(req.full_name, req.skill_level, req.known_stack)
+
+
+@app.get("/profiles/by-auth/{auth_user_id}")
+def get_profile_by_auth(auth_user_id: str):
+    profile = db.get_profile_by_auth_user_id(auth_user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="No profile found for this user")
+    return profile
 
 
 @app.get("/profiles/{profile_id}")
@@ -134,6 +154,16 @@ def run_roadmap(session_id: str):
             "roadmap": roadmap.model_dump(),
             "critique": critique.model_dump(),
         }
+    except pipeline.PipelineGateError as e:
+        raise _gate_err(e)
+
+
+@app.post("/sessions/{session_id}/revise-stack")
+def revise_stack(session_id: str, req: ReviseStackRequest):
+    """Stack-rejection path — re-runs Agent 2 with note. Gate: feasibility_presented."""
+    try:
+        output = pipeline.run_feasibility_revision(session_id, req.student_note)
+        return output.model_dump()
     except pipeline.PipelineGateError as e:
         raise _gate_err(e)
 

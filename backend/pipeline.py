@@ -134,6 +134,48 @@ def run_feasibility(session_id: str) -> schemas.FeasibilityOutput:
     return output
 
 
+# ── Step 3b: Feasibility Revision — stack-rejection path ──────────────────────
+
+def run_feasibility_revision(session_id: str, student_note: str) -> schemas.FeasibilityOutput:
+    """
+    Gate: feasibility_presented (before confirm_stack — no roadmap exists yet).
+
+    Stack-rejection path: re-runs Agent 2 with the student's note as added context.
+    Creates a new versioned agent_outputs row (copies idea_analysis forward, preserves v1
+    feasibility row unchanged). Resets to feasibility_presented so the student must
+    explicitly confirm the revised stack before the Roadmap Planner is allowed to run.
+    """
+    session = db.get_session(session_id)
+    _gate(session, "feasibility_presented")
+
+    profile = db.get_profile(session["profile_id"])
+    locked_idea = db.get_locked_idea(session_id)
+
+    latest = db.get_latest_agent_output(session_id)
+    if not latest or not latest.get("idea_analysis"):
+        raise PipelineGateError("No idea analysis found. Run /analyze first.")
+
+    idea_output = _idea_adapter.validate_python(latest["idea_analysis"])
+
+    output = run_feasibility_advisor(schemas.FeasibilityInput(
+        locked_idea_text=locked_idea,
+        skill_level=profile["skill_level"],
+        known_stack=profile.get("known_stack"),
+        idea_analyzer_output=idea_output,
+        student_note=student_note,
+    ))
+
+    version = db.get_next_version(session_id)
+    new_row = db.create_agent_output_row(session_id, version, latest["idea_analysis"])
+    db.update_agent_output_feasibility(
+        output_id=new_row["id"],
+        feasibility=output.model_dump(exclude={"recommended_stack"}),
+        tech_stack=output.recommended_stack.model_dump(),
+    )
+    db.update_session_status(session_id, "feasibility_presented")
+    return output
+
+
 # ── Step 4: Confirm Stack — human approval gate, no LLM call ──────────────────
 
 def confirm_stack(session_id: str) -> None:

@@ -56,6 +56,7 @@ class FeasibilityInput(BaseModel):
     skill_level: SkillLevel
     known_stack: str | None = None
     idea_analyzer_output: IdeaAnalyzerOutput
+    student_note: str | None = None  # populated on stack-revision runs
 
 
 class RecommendedStack(BaseModel):

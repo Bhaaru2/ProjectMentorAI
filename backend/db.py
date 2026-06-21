@@ -49,6 +49,15 @@ def get_profile(profile_id: str) -> dict:
     return r.data
 
 
+def get_profile_by_auth_user_id(auth_user_id: str) -> dict | None:
+    r = (get_db().table("profiles")
+         .select("*")
+         .eq("auth_user_id", auth_user_id)
+         .limit(1)
+         .execute())
+    return r.data[0] if r.data else None
+
+
 # ── Sessions ───────────────────────────────────────────────────────────────────
 
 def create_session(profile_id: str, title: str) -> dict:
