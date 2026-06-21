@@ -59,12 +59,16 @@ def run_feasibility_advisor(input: FeasibilityInput) -> FeasibilityOutput:
         # Vague case: student locked one of the generated options; include them for context
         idea_ctx["options"] = [o.model_dump() for o in input.idea_analyzer_output.options]
 
-    user_message = json.dumps({
+    payload: dict = {
         "locked_idea_text": input.locked_idea_text,
         "student_skill_level": input.skill_level,
         "student_known_stack": input.known_stack or "not specified",
         "idea_analyzer_output": idea_ctx,
-    }, ensure_ascii=False)
+    }
+    if input.student_note:
+        payload["student_revision_note"] = input.student_note
+
+    user_message = json.dumps(payload, ensure_ascii=False)
 
     response = get_client().chat.completions.create(
         model=MODEL,
