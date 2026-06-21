@@ -14,10 +14,29 @@ def get_db() -> Client:
     return _client
 
 
+# ── Auth helpers (service-role only) ──────────────────────────────────────────
+
+def create_test_auth_user(email: str) -> str:
+    """Creates a Supabase auth user and returns its UUID. For headless tests only."""
+    response = get_db().auth.admin.create_user({"email": email, "email_confirm": True})
+    return response.user.id
+
+
+def delete_test_auth_user(auth_user_id: str) -> None:
+    """Deletes a Supabase auth user by UUID. For headless test cleanup only."""
+    get_db().auth.admin.delete_user(auth_user_id)
+
+
 # ── Profiles ───────────────────────────────────────────────────────────────────
 
-def create_profile(full_name: str, skill_level: str, known_stack: str | None = None) -> dict:
+def create_profile(
+    full_name: str,
+    skill_level: str,
+    known_stack: str | None = None,
+    auth_user_id: str | None = None,
+) -> dict:
     r = get_db().table("profiles").insert({
+        "auth_user_id": auth_user_id,
         "full_name": full_name,
         "skill_level": skill_level,
         "known_stack": known_stack,
