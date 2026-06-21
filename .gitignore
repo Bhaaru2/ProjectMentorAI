@@ -1,0 +1,49 @@
+# ── Environment & secrets ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ─────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Node / Frontend ────────────────────────────────────────────────────────────
+node_modules/
+.next/
+.nuxt/
+out/
+dist/
+.cache/
+*.tsbuildinfo
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Editors ────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
