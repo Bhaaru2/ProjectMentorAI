@@ -76,37 +76,16 @@ export function FeasibilityCard({ feasibility: f, onConfirmStack, onReviseStack,
         <p className="muted small" style={{ marginTop: '0.5rem' }}>{f.stack_rationale}</p>
       </div>
 
-      {!readOnly && (revising ? (
-        <form onSubmit={submitRevision} className="form" style={{ marginTop: '1.25rem' }}>
-          <label>
-            What would you like to change about the stack or scope?
-            <textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              rows={3}
-              placeholder="e.g. 'I'd prefer to use React Native for the frontend' or 'the scope feels too broad'"
-              disabled={loading}
-            />
-          </label>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button type="submit" className="btn-primary" disabled={loading || !note.trim()}>
-              {loading ? 'Re-running analysis…' : 'Submit revision'}
-            </button>
-            <button type="button" className="btn-secondary" onClick={() => setRevising(false)} disabled={loading}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      ) : (
+      {!readOnly && (
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
           <button className="btn-primary" onClick={onConfirmStack} disabled={loading}>
             {loading ? 'Building roadmap…' : 'Confirm this stack'}
           </button>
-          <button className="btn-secondary" onClick={() => setRevising(true)} disabled={loading}>
+          {/* <button className="btn-secondary" onClick={() => setRevising(true)} disabled={loading}>
             Revise stack / scope
-          </button>
+          </button> */}
         </div>
-      ))}
+      )}
     </div>
   )
 }

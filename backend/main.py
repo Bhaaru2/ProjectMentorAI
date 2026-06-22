@@ -208,6 +208,16 @@ def revise_roadmap(session_id: str, req: ReviseRequest):
         raise _gate_err(e)
 
 
+@app.get("/sessions/{session_id}/intent-summary")
+def get_intent_summary(session_id: str):
+    """Synthesise 1-2 sentences describing what the student wants to build,
+    drawn from their messages across the full discussion."""
+    from agents.discuss import run_intent_summary_agent
+    conversation = db.get_conversation_log(session_id)
+    summary = run_intent_summary_agent(conversation)
+    return {"summary": summary}
+
+
 @app.post("/sessions/{session_id}/discuss")
 def discuss(session_id: str, req: DiscussRequest):
     """Free-form ask or revision via conversation. Logs both turns to conversation_log."""
@@ -215,3 +225,14 @@ def discuss(session_id: str, req: DiscussRequest):
         return pipeline.run_discuss(session_id, req.message, req.intent)
     except pipeline.PipelineGateError as e:
         raise _gate_err(e)
+    except Exception as e:
+        err_str = str(e)
+        if "413" in err_str or "rate_limit" in err_str or "tokens" in err_str.lower():
+            raise HTTPException(
+                status_code=429,
+                detail="The AI service is temporarily over capacity. Please wait a moment and try again.",
+            )
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI service error — please try again. ({type(e).__name__})",
+        )

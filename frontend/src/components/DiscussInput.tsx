@@ -4,9 +4,10 @@ interface Props {
   onSubmit: (message: string, intent: 'ask' | 'revise') => void
   loading: boolean
   canRevise: boolean
+  revisePlaceholder?: string
 }
 
-export function DiscussInput({ onSubmit, loading, canRevise }: Props) {
+export function DiscussInput({ onSubmit, loading, canRevise, revisePlaceholder }: Props) {
   const [message, setMessage] = useState('')
   const [intent, setIntent] = useState<'ask' | 'revise'>('ask')
 
@@ -21,17 +22,17 @@ export function DiscussInput({ onSubmit, loading, canRevise }: Props) {
   return (
     <div className="card">
       <div className="discuss-header">
-        <h2 style={{ margin: 0 }}>Ask or revise</h2>
-        <div className="intent-toggle">
-          <button
-            type="button"
-            className={intent === 'ask' ? 'btn-primary' : 'btn-secondary'}
-            onClick={() => setIntent('ask')}
-            disabled={loading}
-          >
-            Ask
-          </button>
-          {canRevise && (
+        <h2 style={{ margin: 0 }}>{canRevise ? 'Ask or revise' : 'Ask'}</h2>
+        {canRevise && (
+          <div className="intent-toggle">
+            <button
+              type="button"
+              className={intent === 'ask' ? 'btn-primary' : 'btn-secondary'}
+              onClick={() => setIntent('ask')}
+              disabled={loading}
+            >
+              Ask
+            </button>
             <button
               type="button"
               className={intent === 'revise' ? 'btn-primary' : 'btn-secondary'}
@@ -40,8 +41,8 @@ export function DiscussInput({ onSubmit, loading, canRevise }: Props) {
             >
               Revise
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <form onSubmit={submit} className="form" style={{ marginTop: '1rem' }}>
@@ -52,7 +53,7 @@ export function DiscussInput({ onSubmit, loading, canRevise }: Props) {
           placeholder={
             intent === 'ask'
               ? 'Ask anything about your project plan…'
-              : 'Describe what you\'d like changed…'
+              : (revisePlaceholder ?? 'Describe what you\'d like changed…')
           }
           disabled={loading}
         />

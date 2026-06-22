@@ -90,7 +90,7 @@ class RoadmapInput(BaseModel):
 
 
 class WeekPlan(BaseModel):
-    week_number: int = Field(ge=1, le=8)
+    week_number: int = Field(ge=1, le=52)
     tasks: list[str] = Field(min_length=3, max_length=5)
     milestone: str
 
@@ -127,13 +127,13 @@ class FeedbackAddressed(BaseModel):
 
 
 class RoadmapFlag(BaseModel):
-    week_number: int = Field(ge=1, le=8)
+    week_number: int = Field(ge=1, le=52)
     issue: str
     suggestion: str
 
 
 class MilestoneSuggestion(BaseModel):
-    week_number: int = Field(ge=1, le=8)
+    week_number: int = Field(ge=1, le=52)
     original_milestone: str
     suggested_milestone: str
 

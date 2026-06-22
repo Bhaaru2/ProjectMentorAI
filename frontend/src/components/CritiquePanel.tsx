@@ -20,8 +20,14 @@ export function CritiquePanel({ critique: c, onSubmitRevision, loading, readOnly
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (feedback.trim()) onSubmitRevision(feedback.trim())
+    if (feedback.trim()) {
+      onSubmitRevision(feedback.trim())
+      setFeedback('')
+    }
   }
+
+  const isRevisionResult = !!c.student_feedback_addressed
+  const failedChecks = c.checklist.filter(item => item.result === 'fail')
 
   return (
     <div className="card">
@@ -30,30 +36,40 @@ export function CritiquePanel({ critique: c, onSubmitRevision, loading, readOnly
         <span className="badge" style={{ backgroundColor: vs.bg }}>{vs.label}</span>
       </div>
 
-      <div style={{ marginBottom: '1.25rem' }}>
-        <strong>Checklist</strong>
-        <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {c.checklist.map((item, i) => (
-            <div key={i} className={`checklist-item ${item.result === 'fail' ? 'checklist-fail' : 'checklist-pass'}`}>
-              <span className="check-icon">{item.result === 'pass' ? '✓' : '✗'}</span>
-              <div>
-                <p style={{ margin: 0, fontWeight: 500 }}>{item.item}</p>
-                <p className="muted small" style={{ margin: '0.2rem 0 0' }}>{item.notes}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {c.student_feedback_addressed && (
+      {/* Revision run: show feedback addressed FIRST, then only issues */}
+      {isRevisionResult && (
         <div style={{ marginBottom: '1.25rem' }}>
           <strong>Your feedback</strong>
-          <div className={`checklist-item ${c.student_feedback_addressed.result === 'fail' ? 'checklist-fail' : 'checklist-pass'}`} style={{ marginTop: '0.5rem' }}>
-            <span className="check-icon">{c.student_feedback_addressed.result === 'pass' ? '✓' : '✗'}</span>
+          <div
+            className={`checklist-item ${c.student_feedback_addressed!.result === 'fail' ? 'checklist-fail' : 'checklist-pass'}`}
+            style={{ marginTop: '0.5rem' }}
+          >
+            <span className="check-icon">{c.student_feedback_addressed!.result === 'pass' ? '✓' : '✗'}</span>
             <div>
-              <p style={{ margin: 0 }}>{c.student_feedback_addressed.feedback_summary}</p>
-              <p className="muted small" style={{ margin: '0.2rem 0 0' }}>{c.student_feedback_addressed.notes}</p>
+              <p style={{ margin: 0 }}>{c.student_feedback_addressed!.feedback_summary}</p>
+              <p className="muted small" style={{ margin: '0.2rem 0 0' }}>{c.student_feedback_addressed!.notes}</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* First run: full checklist. Revision run: only failed items */}
+      {(!isRevisionResult || failedChecks.length > 0) && (
+        <div style={{ marginBottom: '1.25rem' }}>
+          <strong>{isRevisionResult ? 'Remaining issues' : 'Checklist'}</strong>
+          <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {(isRevisionResult ? failedChecks : c.checklist).map((item, i) => (
+              <div key={i} className={`checklist-item ${item.result === 'fail' ? 'checklist-fail' : 'checklist-pass'}`}>
+                <span className="check-icon">{item.result === 'pass' ? '✓' : '✗'}</span>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{item.item}</p>
+                  <p className="muted small" style={{ margin: '0.2rem 0 0' }}>{item.notes}</p>
+                </div>
+              </div>
+            ))}
+            {isRevisionResult && failedChecks.length === 0 && (
+              <p className="muted small">All checklist items pass.</p>
+            )}
           </div>
         </div>
       )}
@@ -70,7 +86,8 @@ export function CritiquePanel({ critique: c, onSubmitRevision, loading, readOnly
         </div>
       )}
 
-      {c.strengths.length > 0 && (
+      {/* Strengths only on first run — student already knows the plan's strengths */}
+      {!isRevisionResult && c.strengths.length > 0 && (
         <div style={{ marginBottom: '1.25rem' }}>
           <strong>Strengths</strong>
           <ul className="bullet-list">
@@ -79,7 +96,7 @@ export function CritiquePanel({ critique: c, onSubmitRevision, loading, readOnly
         </div>
       )}
 
-      {c.missing_elements.length > 0 && (
+      {!isRevisionResult && c.missing_elements.length > 0 && (
         <div style={{ marginBottom: '1.25rem' }}>
           <strong>Missing elements</strong>
           <ul className="bullet-list">

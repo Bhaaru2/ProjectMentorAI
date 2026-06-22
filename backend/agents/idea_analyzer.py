@@ -23,8 +23,15 @@ Step 2a — If VAGUE: generate exactly 2 or 3 distinct project options.
 
 Step 2b — If SPECIFIC: deep-analyze the single idea:
   - relevance_score (1–10): how well it fits an MCA curriculum
+  - relevance_notes: EXACTLY 2-3 sentences describing what the project builds and what it does. \
+    Cover: (1) the core purpose of the system, (2) the key features or modules it will include, \
+    (3) who it is built for or how it will be used. \
+    Focus entirely on the project itself — do NOT mention MCA curriculum or alignment. \
+    Incorporate any refinements the student mentioned during discussion. \
+    Never write a single sentence — always write at least 2.
   - originality_score (1–10): how overused/fresh the idea is
   - scope_verdict: "well-scoped" | "too-broad" | "too-narrow" for 8 weeks
+  - scope_notes: 1 sentence on why the scope is well-suited (or not) for 8 weeks
   - recommendation: "proceed" | "revise"
 
 SCOPE RULES (enforce strictly — politely redirect if violated):

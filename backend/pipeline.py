@@ -19,6 +19,8 @@ IMPORTANT: Do not regenerate this file from agent calls. Edit it directly only w
 pipeline routing rules change.
 """
 
+import re
+
 from pydantic import TypeAdapter
 
 import db
@@ -61,12 +63,15 @@ def run_idea_analysis(session_id: str, raw_idea_text: str) -> schemas.IdeaAnalyz
     row with idea_analysis populated. Advances session to options_presented.
     """
     session = db.get_session(session_id)
-    _gate(session, "draft", "idea_locked", "roadmap_ready", "revising")
+    _gate(session, "draft", "options_presented", "idea_locked", "roadmap_ready", "revising")
 
     profile = db.get_profile(session["profile_id"])
 
-    db.log_message(session_id, "user", "idea_analysis", "question",
-                   content={"text": raw_idea_text})
+    # Only log the user message on the initial submission — re-analysis from
+    # options_presented already has the original idea in the log.
+    if session["status"] != "options_presented":
+        db.log_message(session_id, "user", "idea_analysis", "question",
+                       content={"text": raw_idea_text})
 
     output = run_idea_analyzer(schemas.IdeaAnalyzerInput(
         raw_idea_text=raw_idea_text,
@@ -98,6 +103,16 @@ def lock_idea(session_id: str, selected_idea_text: str) -> None:
     _gate(session, "options_presented")
 
     db.save_project_idea(session_id, selected_idea_text)
+
+    # Update session title to reflect the selected idea.
+    # Vague options arrive as "Title: Description..." — extract just the title part.
+    # Specific ideas arrive as plain text — truncate to 60 chars.
+    if ': ' in selected_idea_text:
+        title = selected_idea_text.split(': ')[0][:80]
+    else:
+        title = selected_idea_text[:60] + ('…' if len(selected_idea_text) > 60 else '')
+    db.update_session_title(session_id, title)
+
     db.update_session_status(session_id, "idea_locked")
 
 
@@ -146,15 +161,17 @@ def run_feasibility(session_id: str) -> schemas.FeasibilityOutput:
 
 def run_feasibility_revision(session_id: str, student_note: str) -> schemas.FeasibilityOutput:
     """
-    Gate: feasibility_presented (before confirm_stack — no roadmap exists yet).
+    Gate: feasibility_presented | roadmap_ready | revising.
 
-    Stack-rejection path: re-runs Agent 2 with the student's note as added context.
-    Creates a new versioned agent_outputs row (copies idea_analysis forward, preserves v1
-    feasibility row unchanged). Resets to feasibility_presented so the student must
+    Stack-revision path: re-runs Agent 2 with the student's note as added context.
+    Creates a new versioned agent_outputs row (copies idea_analysis forward, preserves
+    prior feasibility row unchanged). Resets to feasibility_presented so the student must
     explicitly confirm the revised stack before the Roadmap Planner is allowed to run.
+    Also callable from roadmap_ready/revising when the student wants to change the stack
+    after the roadmap has been generated — resets the pipeline back to feasibility gate.
     """
     session = db.get_session(session_id)
-    _gate(session, "feasibility_presented")
+    _gate(session, "feasibility_presented", "roadmap_ready", "revising")
 
     profile = db.get_profile(session["profile_id"])
     locked_idea = db.get_locked_idea(session_id)
@@ -329,11 +346,16 @@ def run_discuss(session_id: str, message: str, intent: str) -> dict:
     intent == "ask": read-only conversational reply using discuss.py agent.
       No agent_outputs write. Logs both turns to conversation_log.
 
-    intent == "revise": gate-checked re-run of the appropriate stage agent.
-      Calls run_feasibility_revision or run_revision_wave depending on
-      session status. Logs both turns to conversation_log.
+    intent == "revise": classifies the revision scope first (idea / feasibility /
+      roadmap), then routes to the appropriate pipeline step, resetting session
+      status to the correct gate so the student must re-confirm each stage.
+
+      Scope routing (applied at ANY stage, including roadmap_ready):
+        "idea"        → re-runs Agent 1 (Idea Analyzer); resets to options_presented
+        "feasibility" → re-runs Agent 2 (Feasibility); resets to feasibility_presented
+        "roadmap"     → re-runs Agents 3+4 (Roadmap wave); stays at roadmap_ready
     """
-    from agents.discuss import run_discuss_agent
+    from agents.discuss import run_discuss_agent, classify_revision_scope
 
     session = db.get_session(session_id)
     stage = get_stage_from_status(session["status"])
@@ -351,7 +373,42 @@ def run_discuss(session_id: str, message: str, intent: str) -> dict:
     )
 
     if intent == "ask":
-        reply = run_discuss_agent(stage, context, history, message)
+        # Auto-escalate: if the student requests a specific week count at the roadmap
+        # stage ("i want 4 week plan", "3 weeks", etc.) treat it as a revision so the
+        # roadmap actually updates instead of just receiving a text explanation.
+        if stage == "roadmap" and re.search(r'\b\d+\s*-?\s*weeks?\b', message, re.IGNORECASE):
+            intent = "revise"
+        else:
+            reply = run_discuss_agent(stage, context, history, message)
+            db.log_message(
+                session_id=session_id,
+                role="assistant",
+                stage=stage,
+                message_type="text",
+                content={"text": reply},
+                intent=intent,
+            )
+            return {"type": "reply", "content": reply, "version": None, "scope": None}
+
+    # ── intent == "revise": classify then route ───────────────────────────────
+    locked_idea = db.get_locked_idea(session_id) or ""
+    scope = classify_revision_scope(message, session["status"], locked_idea)
+
+    # After the roadmap is built, never generate new idea options — the user
+    # must start a new session to explore a completely different project.
+    # Re-route any "idea" classification to a roadmap revision so the change
+    # is applied to the existing plan.
+    if session["status"] in ("roadmap_ready", "revising", "stack_confirmed") and scope == "idea":
+        scope = "roadmap"
+
+    if scope == "idea":
+        # The Revise tab never generates new project ideas — that would wipe the
+        # conversation history. Direct the student to start a fresh session instead.
+        reply = (
+            "To explore a completely different project idea, please start a new session "
+            "using the + button on the left. I can help you revise your current project — "
+            "just describe what you'd like to change about the plan, tech stack, or timeline."
+        )
         db.log_message(
             session_id=session_id,
             role="assistant",
@@ -360,9 +417,25 @@ def run_discuss(session_id: str, message: str, intent: str) -> dict:
             content={"text": reply},
             intent=intent,
         )
-        return {"type": "reply", "content": reply, "version": None}
+        return {"type": "reply", "content": reply, "version": None, "scope": None}
 
-    # intent == "revise"
+    if scope == "feasibility":
+        # Re-run Agent 2. Gate accepts roadmap_ready/revising (expanded above).
+        output = run_feasibility_revision(session_id, message)
+        new_latest = db.get_latest_agent_output(session_id)
+        version = new_latest["version"] if new_latest else None
+        db.log_message(
+            session_id=session_id,
+            role="assistant",
+            stage="feasibility",
+            message_type="agent_output",
+            content=output.model_dump(),
+            intent=intent,
+            agent_output_version=version,
+        )
+        return {"type": "revision", "scope": "feasibility", "content": output.model_dump(), "version": version}
+
+    # scope == "roadmap" (default) — also handles feasibility-stage revisions
     if stage == "feasibility":
         _gate(session, "feasibility_presented")
         output = run_feasibility_revision(session_id, message)
@@ -377,9 +450,9 @@ def run_discuss(session_id: str, message: str, intent: str) -> dict:
             intent=intent,
             agent_output_version=version,
         )
-        return {"type": "revision", "content": output.model_dump(), "version": version}
+        return {"type": "revision", "scope": "feasibility", "content": output.model_dump(), "version": version}
 
-    elif stage == "roadmap":
+    if stage == "roadmap":
         _gate(session, "roadmap_ready")
         roadmap, critique = run_revision_wave(session_id, message)
         new_latest = db.get_latest_agent_output(session_id)
@@ -395,12 +468,12 @@ def run_discuss(session_id: str, message: str, intent: str) -> dict:
         )
         return {
             "type": "revision",
+            "scope": "roadmap",
             "content": {"roadmap": roadmap.model_dump(), "critique": critique.model_dump()},
             "version": version,
         }
 
-    else:
-        raise PipelineGateError(
-            f"Revision not supported at stage '{stage}'. "
-            "Use the idea input to submit a different idea."
-        )
+    raise PipelineGateError(
+        f"Revision not supported at stage '{stage}'. "
+        "Use the idea input to submit a different idea."
+    )

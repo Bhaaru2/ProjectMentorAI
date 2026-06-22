@@ -63,10 +63,15 @@ export function useSessionState() {
       const result = await fn()
       return result
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.detail ?? err?.message ?? 'An unexpected error occurred.'
-      patch({ loading: false, error: String(msg) })
+      const isTimeout = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
+      const msg = isTimeout
+        ? 'The AI took too long to respond. Please try again.'
+        : (err?.response?.data?.detail ?? err?.message ?? 'An unexpected error occurred.')
+      patch({ error: String(msg) })
       return undefined
+    } finally {
+      // Always reset loading, whether fn succeeded, threw, or forgot to reset itself
+      patch({ loading: false })
     }
   }
 
@@ -77,13 +82,23 @@ export function useSessionState() {
       const title = rawIdeaText.slice(0, 60) + (rawIdeaText.length > 60 ? '…' : '')
       const session = await mentor.createSession(profileId, title)
       const ideaOutput = await mentor.analyzeIdea(session.id, rawIdeaText)
+      const log = await mentor.getConversationLog(session.id)
       patch({
         sessionId: session.id,
         phase: 'options_presented',
         ideaOutput,
-        conversationLog: [],
-        loading: false,
+        conversationLog: log,
       })
+    })
+  }
+
+  // ── Re-analyze idea on the existing session (revision path from options_presented) ──
+
+  const reanalyzeIdea = async (refinedText: string) => {
+    await withLoading(async () => {
+      const ideaOutput = await mentor.analyzeIdea(state.sessionId!, refinedText)
+      const log = await mentor.getConversationLog(state.sessionId!)
+      patch({ ideaOutput, phase: 'options_presented', conversationLog: log })
     })
   }
 
@@ -94,7 +109,7 @@ export function useSessionState() {
       await mentor.lockIdea(state.sessionId!, selectedIdeaText)
       patch({ phase: 'idea_locked' })
       const feasibilityOutput = await mentor.runFeasibility(state.sessionId!)
-      patch({ feasibilityOutput, phase: 'feasibility_presented', loading: false })
+      patch({ feasibilityOutput, phase: 'feasibility_presented' })
     })
   }
 
@@ -104,7 +119,7 @@ export function useSessionState() {
     await withLoading(async () => {
       const feasibilityOutput = await mentor.reviseStack(state.sessionId!, studentNote)
       const log = await mentor.getConversationLog(state.sessionId!)
-      patch({ feasibilityOutput, phase: 'feasibility_presented', conversationLog: log, loading: false })
+      patch({ feasibilityOutput, phase: 'feasibility_presented', conversationLog: log })
     })
   }
 
@@ -115,7 +130,7 @@ export function useSessionState() {
       await mentor.confirmStack(state.sessionId!)
       patch({ phase: 'stack_confirmed' })
       const { roadmap, critique } = await mentor.runRoadmap(state.sessionId!)
-      patch({ roadmapOutput: roadmap, critiqueOutput: critique, phase: 'roadmap_ready', loading: false })
+      patch({ roadmapOutput: roadmap, critiqueOutput: critique, phase: 'roadmap_ready' })
     })
   }
 
@@ -125,7 +140,7 @@ export function useSessionState() {
     await withLoading(async () => {
       const { roadmap, critique } = await mentor.reviseRoadmap(state.sessionId!, feedback)
       const log = await mentor.getConversationLog(state.sessionId!)
-      patch({ roadmapOutput: roadmap, critiqueOutput: critique, phase: 'roadmap_ready', conversationLog: log, loading: false })
+      patch({ roadmapOutput: roadmap, critiqueOutput: critique, phase: 'roadmap_ready', conversationLog: log })
     })
   }
 
@@ -138,17 +153,27 @@ export function useSessionState() {
       const updates: Partial<SessionState> = {}
 
       if (response.type === 'revision') {
-        const content = response.content as Record<string, unknown>
-        if ('recommended_stack' in content) {
-          updates.feasibilityOutput = content as unknown as FeasibilityOutput
-        } else if ('roadmap' in content) {
-          updates.roadmapOutput = content.roadmap as RoadmapOutput
-          updates.critiqueOutput = content.critique as CriticOutput
+        const scope = response.scope
+
+        if (scope === 'feasibility') {
+          // Re-ran Feasibility — reset roadmap (stale)
+          updates.feasibilityOutput = response.content as FeasibilityOutput
+          updates.phase = 'feasibility_presented'
+          updates.roadmapOutput = null
+          updates.critiqueOutput = null
+
+        } else {
+          // scope === 'roadmap' or legacy response without scope
+          const content = response.content as Record<string, unknown>
+          if ('roadmap' in content) {
+            updates.roadmapOutput = content.roadmap as RoadmapOutput
+            updates.critiqueOutput = content.critique as CriticOutput
+          }
         }
       }
 
       const log = await mentor.getConversationLog(state.sessionId!)
-      patch({ ...updates, conversationLog: log, loading: false })
+      patch({ ...updates, conversationLog: log })
     })
   }
 
@@ -177,7 +202,6 @@ export function useSessionState() {
         roadmapOutput,
         critiqueOutput: out?.critique ?? null,
         conversationLog: log,
-        loading: false,
       })
     })
   }
@@ -187,6 +211,7 @@ export function useSessionState() {
   return {
     ...state,
     startAndAnalyze,
+    reanalyzeIdea,
     lockIdea,
     reviseStack,
     confirmStack,

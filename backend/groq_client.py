@@ -10,5 +10,5 @@ def get_client() -> Groq:
         api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
             raise RuntimeError("GROQ_API_KEY environment variable is not set")
-        _client = Groq(api_key=api_key)
+        _client = Groq(api_key=api_key, timeout=45.0)
     return _client

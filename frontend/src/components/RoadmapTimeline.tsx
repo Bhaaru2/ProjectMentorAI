@@ -10,7 +10,7 @@ export function RoadmapTimeline({ roadmap, flags }: Props) {
 
   return (
     <div className="card">
-      <h2>8-week roadmap</h2>
+      <h2>{roadmap.total_weeks}-week roadmap</h2>
       {roadmap.critical_path_notes && (
         <p className="muted" style={{ marginBottom: '1rem' }}>
           ⚠ {roadmap.critical_path_notes}

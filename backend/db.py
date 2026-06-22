@@ -81,6 +81,13 @@ def update_session_status(session_id: str, status: str) -> None:
     }).eq("id", session_id).execute()
 
 
+def update_session_title(session_id: str, title: str) -> None:
+    get_db().table("sessions").update({
+        "title": title,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", session_id).execute()
+
+
 def list_sessions(profile_id: str) -> list[dict]:
     r = (get_db().table("sessions")
          .select("*")

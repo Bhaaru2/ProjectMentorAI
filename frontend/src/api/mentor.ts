@@ -275,6 +275,7 @@ export interface DiscussResponse {
   type: 'reply' | 'revision'
   content: unknown
   version: number | null
+  scope: 'idea' | 'feasibility' | 'roadmap' | null
 }
 
 export async function getConversationLog(sessionId: string): Promise<ConversationMessage[]> {
@@ -289,4 +290,9 @@ export async function discuss(
 ): Promise<DiscussResponse> {
   const res = await api.post<DiscussResponse>(`/sessions/${sessionId}/discuss`, { message, intent })
   return res.data
+}
+
+export async function getIntentSummary(sessionId: string): Promise<string> {
+  const res = await api.get<{ summary: string }>(`/sessions/${sessionId}/intent-summary`)
+  return res.data.summary
 }

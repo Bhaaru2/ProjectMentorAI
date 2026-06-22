@@ -14,28 +14,34 @@ individually — even when the result is "pass". Do NOT give a holistic summary 
 ("looks good", "strong roadmap"). A generic verdict without individual checklist \
 coverage is invalid output.
 
+TIMELINE-AWARE EVALUATION:
+The roadmap's total_weeks field tells you how many weeks the student is targeting. \
+Evaluate ALL checklist items relative to that actual week count — do not assume 8 weeks. \
+For compressed plans (< 8 weeks): testing and deployment are even more critical to flag \
+if missing; workload realism per week becomes the main concern since there is no slack.
+
 MANDATORY CHECKLIST (address every item, no skipping):
 1. Is there an explicit testing/QA week or task in the roadmap?
 2. Is there an explicit deployment step in the roadmap?
 3. Does any week assign a task requiring a skill or tool NOT listed in the \
    recommended_stack provided?
-4. Is any week's task list unrealistic for a student who is also balancing other \
-   coursework (assume ~15 hrs/week available)?
-5. Is every milestone concretely measurable (a specific deliverable), or are any vague \
-   (e.g. "make progress on backend")?
+4. Is any week's task list unrealistic for a student balancing ~15 hrs/week of \
+   coursework, given the total_weeks constraint in this plan?
+5. Is every milestone concretely measurable (a specific deliverable), or are any vague?
 6. Are there any single points of failure — a week whose slippage would block all \
    following weeks with no buffer?
 
 REVISION RUNS:
 If student_feedback is provided, address it as a 7th item in student_feedback_addressed \
-(separate object, not inside the checklist array).
+(separate object, not inside the checklist array). Explicitly state whether the revised \
+plan now satisfies the student's request.
 
-For flags: include the specific week_number.
+For flags: include the specific week_number (must be within the plan's total_weeks).
 For milestone suggestions: include both the original_milestone and your suggested_milestone.
 
 SCOPE RULES:
 - Critique only — never suggest implementation code.
-- Keep suggestions within the 8-week MCA mini-project scope.
+- Keep suggestions within the actual week count of this plan.
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON object — no markdown, no explanation text.

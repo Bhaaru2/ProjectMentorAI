@@ -69,24 +69,16 @@ export function OptionsDisplay({ ideaOutput, originalIdeaText, onSelectOption, o
         </p>
       )}
 
-      <div className="score-row">
-        <div className="score-item">
-          <span className="score-num">{a.relevance_score}/10</span>
-          <span className="score-label">Relevance to MCA</span>
-          <p className="muted small">{a.relevance_notes}</p>
-        </div>
-        <div className="score-item">
-          <span className="score-num">{a.originality_score}/10</span>
-          <span className="score-label">Originality</span>
-          <p className="muted small">{a.originality_notes}</p>
-        </div>
+      <div style={{ marginBottom: '1.25rem' }}>
+        <span className="score-num">{a.relevance_score}/10</span>
+        <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', lineHeight: 1.55 }}>{a.relevance_notes}</p>
       </div>
 
-      <div style={{ marginTop: '1rem' }}>
+      <div>
         <span className="badge" style={{ backgroundColor: verdictColor }}>
           {a.scope_verdict.replace(/-/g, ' ')}
         </span>
-        <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>{a.scope_notes}</p>
+        <p className="muted small" style={{ marginTop: '0.4rem' }}>{a.scope_notes}</p>
       </div>
 
       {!readOnly && (
